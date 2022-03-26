@@ -1,13 +1,11 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Threading;
-using System.Threading.Tasks;
 using UnityEngine;
 
 namespace AillieoUtils.EasyTimeSlicing
 {
-    public class SliceableTaskQueue
+    public class SliceableTaskQueue : AbstractSliceableTask
     {
         public enum Priority
         {
@@ -16,15 +14,16 @@ namespace AillieoUtils.EasyTimeSlicing
             High,
         }
 
-        private readonly SliceableTask sliceableTask;
-
         private Queue<Action> queueLow;
         private Queue<Action> queueMedium;
         private Queue<Action> queueHigh;
+        private readonly bool repeated = false;
 
-        public SliceableTaskQueue(float executionTimePerFrame)
+        public SliceableTaskQueue(float executionTimePerFrame, bool repeated)
+            : base(executionTimePerFrame)
         {
-            this.sliceableTask = new SliceableTask(executionTimePerFrame, ProcessTask);
+            this.repeated = repeated;
+            TimeSlicingScheduler.Instance.Add(this);
         }
 
         public void Enqueue(Action action, Priority priority = Priority.Medium)
@@ -65,7 +64,7 @@ namespace AillieoUtils.EasyTimeSlicing
             throw new Exception();
         }
 
-        private bool ProcessTask()
+        public override bool Execute()
         {
             if (queueHigh != null && queueHigh.Count > 0)
             {
@@ -94,7 +93,7 @@ namespace AillieoUtils.EasyTimeSlicing
                 }
             }
 
-            return true;
+            return !repeated;
         }
     }
 }

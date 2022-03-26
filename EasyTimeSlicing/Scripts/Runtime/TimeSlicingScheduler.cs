@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Assertions;
 
 namespace AillieoUtils.EasyTimeSlicing
 {
@@ -38,11 +39,13 @@ namespace AillieoUtils.EasyTimeSlicing
             }
         }
 
-        private readonly List<SliceableTask> managedTasks = new List<SliceableTask>();
+        private readonly List<AbstractSliceableTask> managedTasks = new List<AbstractSliceableTask>();
 
-        public void Add(SliceableTask task)
+        public void Add(AbstractSliceableTask task)
         {
+            Assert.AreEqual(task.status, TaskStatus.Detached);
             managedTasks.Add(task);
+            task.status = TaskStatus.Queued;
         }
 
         private void Update()
@@ -51,10 +54,21 @@ namespace AillieoUtils.EasyTimeSlicing
             int taskCount = managedTasks.Count;
             for (int i = 0; i < taskCount; ++i)
             {
-                SliceableTask task = managedTasks[i];
+                AbstractSliceableTask task = managedTasks[i];
                 if (task == null)
                 {
                     taskToRemove++;
+                    continue;
+                }
+
+                if (task.status == TaskStatus.Detached || task.status == TaskStatus.Finished)
+                {
+                    taskToRemove++;
+                    continue;
+                }
+
+                if (task.status == TaskStatus.Executing)
+                {
                     continue;
                 }
 
@@ -63,6 +77,7 @@ namespace AillieoUtils.EasyTimeSlicing
                 while (true)
                 {
                     bool finished = false;
+                    task.status = TaskStatus.Executing;
                     try
                     {
                         finished = task.Execute();
@@ -70,12 +85,15 @@ namespace AillieoUtils.EasyTimeSlicing
                     catch (Exception e)
                     {
                         UnityEngine.Debug.LogError(e.StackTrace);
-                        finished = true;
+                    }
+                    finally
+                    {
+                        task.status = TaskStatus.Queued;
                     }
 
                     if (finished)
                     {
-                        task.taskStatus = SliceableTask.TaskStatus.Detached;
+                        task.status = TaskStatus.Finished;
                         managedTasks[i] = null;
                         taskToRemove++;
                         break;
