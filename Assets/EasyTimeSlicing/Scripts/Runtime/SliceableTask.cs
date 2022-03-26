@@ -5,7 +5,7 @@ using UnityEngine;
 
 namespace AillieoUtils.EasyTimeSlicing
 {
-    public class SliceableTask
+    public class SliceableTask : AbstractSliceableTask
     {
         public delegate bool StateMachineFunc(ref int state);
 
@@ -13,29 +13,17 @@ namespace AillieoUtils.EasyTimeSlicing
 
         public delegate IEnumerator CoroutineFunc();
 
-        public enum TaskStatus
-        {
-            Detached,
-            Queued,
-            Executing,
-            Finished,
-        }
-
-        public TaskStatus taskStatus { get; internal set; } = TaskStatus.Detached;
-
-        public float executionTimePerFrame { get; private set; }
-
         private readonly RepeatingFunc func;
 
-        protected SliceableTask()
+        protected SliceableTask(float executionTimePerFrame)
+            : base(executionTimePerFrame)
         {
             TimeSlicingScheduler.Instance.Add(this);
         }
 
         public SliceableTask(float executionTimePerFrame, int initialState, StateMachineFunc func)
-            : this()
+            : this(executionTimePerFrame)
         {
-            this.executionTimePerFrame = executionTimePerFrame;
             int state = initialState;
             this.func = () =>
             {
@@ -44,16 +32,14 @@ namespace AillieoUtils.EasyTimeSlicing
         }
 
         public SliceableTask(float executionTimePerFrame, RepeatingFunc func)
-            : this()
+            : this(executionTimePerFrame)
         {
-            this.executionTimePerFrame = executionTimePerFrame;
             this.func = func;
         }
 
         public SliceableTask(float executionTimePerFrame, IEnumerable<Action> actions)
-            : this()
+            : this(executionTimePerFrame)
         {
-            this.executionTimePerFrame = executionTimePerFrame;
             IEnumerator<Action> e = actions.GetEnumerator();
             this.func = () =>
             {
@@ -68,9 +54,8 @@ namespace AillieoUtils.EasyTimeSlicing
         }
 
         public SliceableTask(float executionTimePerFrame, params Action[] actions)
-            : this()
+            : this(executionTimePerFrame)
         {
-            this.executionTimePerFrame = executionTimePerFrame;
             int actionCount = actions.Length;
             int index = 0;
             this.func = () =>
@@ -94,9 +79,8 @@ namespace AillieoUtils.EasyTimeSlicing
         }
 
         public SliceableTask(float executionTimePerFrame, CoroutineFunc func)
-            : this()
+            : this(executionTimePerFrame)
         {
-            this.executionTimePerFrame = executionTimePerFrame;
             IEnumerator e = func();
             this.func = () =>
             {
@@ -109,7 +93,7 @@ namespace AillieoUtils.EasyTimeSlicing
             };
         }
 
-        public bool Execute()
+        public override bool Execute()
         {
             return func();
         }
