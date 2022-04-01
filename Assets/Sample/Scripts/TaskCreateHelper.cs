@@ -21,5 +21,18 @@ namespace AillieoUtils.EasyTimeSlicing.Sample
             float end = Time.realtimeSinceStartup;
             UnityEngine.Debug.LogError($"In frame {Time.frameCount}: task {index} cost time {end - begin} s");
         }
+
+        public static Action CreateRandomTask(string info)
+        {
+            return () => ExecuteRandomTask(info);
+        }
+
+        public static void ExecuteRandomTask(string info)
+        {
+            float begin = Time.realtimeSinceStartup;
+            Task.Delay(Random.Range(1, 6)).Wait();
+            float end = Time.realtimeSinceStartup;
+            UnityEngine.Debug.LogError($"In frame {Time.frameCount}: task {info} cost time {end - begin} s");
+        }
     }
 }

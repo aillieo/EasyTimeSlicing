@@ -1,11 +1,10 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using UnityEngine;
 
 namespace AillieoUtils.EasyTimeSlicing
 {
-    public class SliceableTaskQueue : AbstractSliceableTask
+    public class SliceableTaskQueue
     {
         public enum Priority
         {
@@ -14,22 +13,44 @@ namespace AillieoUtils.EasyTimeSlicing
             High,
         }
 
+        private readonly SliceableTask sliceableTask;
+
         private Queue<Action> queueLow;
         private Queue<Action> queueMedium;
         private Queue<Action> queueHigh;
-        private readonly bool repeated = false;
 
-        public SliceableTaskQueue(float executionTimePerFrame, bool repeated)
-            : base(executionTimePerFrame)
+        public bool Scheduling { get => sliceableTask.status == TaskStatus.Executing || sliceableTask.status == TaskStatus.Queued; }
+
+        public SliceableTaskQueue(float executionTimePerFrame)
         {
-            this.repeated = repeated;
-            TimeSlicingScheduler.Instance.Add(this);
+            this.sliceableTask = new SliceableTask(executionTimePerFrame, ProcessTask);
         }
 
         public void Enqueue(Action action, Priority priority = Priority.Medium)
         {
             Queue<Action> queue = GetQueue(priority);
             queue.Enqueue(action);
+            if (!Scheduling)
+            {
+                sliceableTask.status = TaskStatus.Detached;
+                Resume();
+            }
+        }
+
+        public void Pause()
+        {
+            if (Scheduling)
+            {
+                TimeSlicingScheduler.Instance.Remove(sliceableTask);
+            }
+        }
+
+        public void Resume()
+        {
+            if (!Scheduling)
+            {
+                TimeSlicingScheduler.Instance.Add(sliceableTask);
+            }
         }
 
         private Queue<Action> GetQueue(Priority priority)
@@ -64,7 +85,7 @@ namespace AillieoUtils.EasyTimeSlicing
             throw new Exception();
         }
 
-        public override bool Execute()
+        private bool ProcessTask()
         {
             if (queueHigh != null && queueHigh.Count > 0)
             {
@@ -93,7 +114,7 @@ namespace AillieoUtils.EasyTimeSlicing
                 }
             }
 
-            return !repeated;
+            return true;
         }
     }
 }
