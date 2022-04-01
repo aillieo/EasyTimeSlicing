@@ -5,7 +5,16 @@ using UnityEngine;
 
 namespace AillieoUtils.EasyTimeSlicing
 {
-    public class SliceableTask : AbstractSliceableTask
+    public enum TaskStatus
+    {
+        Detached,
+        Queued,
+        Executing,
+        Finished,
+        PendingRemove,
+    }
+
+    public class SliceableTask
     {
         public delegate bool StateMachineFunc(ref int state);
 
@@ -15,9 +24,13 @@ namespace AillieoUtils.EasyTimeSlicing
 
         private readonly RepeatingFunc func;
 
-        protected SliceableTask(float executionTimePerFrame)
-            : base(executionTimePerFrame)
+        public TaskStatus status { get; internal set; } = TaskStatus.Detached;
+
+        public float executionTimePerFrame { get; private set; }
+
+        private SliceableTask(float executionTimePerFrame)
         {
+            this.executionTimePerFrame = executionTimePerFrame;
             TimeSlicingScheduler.Instance.Add(this);
         }
 
@@ -93,7 +106,15 @@ namespace AillieoUtils.EasyTimeSlicing
             };
         }
 
-        public override bool Execute()
+        public void Cancel()
+        {
+            if (status == TaskStatus.Executing || status == TaskStatus.Queued)
+            {
+                TimeSlicingScheduler.Instance.Remove(this);
+            }
+        }
+
+        internal bool Execute()
         {
             return func();
         }
