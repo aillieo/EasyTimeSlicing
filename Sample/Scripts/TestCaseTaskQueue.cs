@@ -50,5 +50,17 @@ namespace AillieoUtils.EasyTimeSlicing.Sample
                 .ToList()
                 .ForEach(t => queue.Enqueue(t, SliceableTaskQueue.Priority.Low));
         }
+
+        [ContextMenu(nameof(AddTasks60RemoveOdd))]
+        private void AddTasks60RemoveOdd()
+        {
+            Enumerable.Range(1, 60)
+                .Select(i => new { idx = i, task = TaskCreateHelper.CreateRandomTask(index++) })
+                .ToList()
+                .Select(o => new { idx = o.idx, handle = queue.EnqueueWithHandle(o.task) })
+                .Where(o => (o.idx & 1) != 0)
+                .ToList()
+                .ForEach(o => o.handle.Cancel());
+        }
     }
 }
