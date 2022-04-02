@@ -1,5 +1,4 @@
 using System;
-using System.Collections;
 using System.Collections.Generic;
 
 namespace AillieoUtils.EasyTimeSlicing
@@ -11,6 +10,19 @@ namespace AillieoUtils.EasyTimeSlicing
             Low,
             Medium,
             High,
+        }
+
+        public class Handle
+        {
+            public TaskStatus status { get; internal set; } = TaskStatus.Queued;
+
+            public void Cancel()
+            {
+                if (status == TaskStatus.Queued)
+                {
+                    status = TaskStatus.Detached;
+                }
+            }
         }
 
         private readonly SliceableTask sliceableTask;
@@ -35,6 +47,20 @@ namespace AillieoUtils.EasyTimeSlicing
                 sliceableTask.status = TaskStatus.Detached;
                 Resume();
             }
+        }
+
+        public Handle EnqueueWithHandle(Action action, Priority priority = Priority.Medium)
+        {
+            Handle handle = new Handle();
+            Enqueue(() =>
+            {
+                if (handle.status == TaskStatus.Queued)
+                {
+                    action();
+                    handle.status = TaskStatus.Finished;
+                }
+            });
+            return handle;
         }
 
         public void Pause()

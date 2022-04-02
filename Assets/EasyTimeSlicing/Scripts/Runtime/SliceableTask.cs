@@ -1,7 +1,6 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using UnityEngine;
 
 namespace AillieoUtils.EasyTimeSlicing
 {
@@ -16,13 +15,13 @@ namespace AillieoUtils.EasyTimeSlicing
 
     public class SliceableTask
     {
-        public delegate bool StateMachineFunc(ref int state);
+        public delegate bool OpenStateMachineFunc(ref int state);
 
-        public delegate bool RepeatingFunc();
+        public delegate bool ClosedStateMachineFunc();
 
-        public delegate IEnumerator CoroutineFunc();
+        public delegate IEnumerator EnumFunc();
 
-        private readonly RepeatingFunc func;
+        private readonly ClosedStateMachineFunc func;
 
         public TaskStatus status { get; internal set; } = TaskStatus.Detached;
 
@@ -34,7 +33,7 @@ namespace AillieoUtils.EasyTimeSlicing
             TimeSlicingScheduler.Instance.Add(this);
         }
 
-        public SliceableTask(float executionTimePerFrame, int initialState, StateMachineFunc func)
+        public SliceableTask(float executionTimePerFrame, int initialState, OpenStateMachineFunc func)
             : this(executionTimePerFrame)
         {
             int state = initialState;
@@ -44,7 +43,7 @@ namespace AillieoUtils.EasyTimeSlicing
             };
         }
 
-        public SliceableTask(float executionTimePerFrame, RepeatingFunc func)
+        public SliceableTask(float executionTimePerFrame, ClosedStateMachineFunc func)
             : this(executionTimePerFrame)
         {
             this.func = func;
@@ -91,7 +90,7 @@ namespace AillieoUtils.EasyTimeSlicing
             };
         }
 
-        public SliceableTask(float executionTimePerFrame, CoroutineFunc func)
+        public SliceableTask(float executionTimePerFrame, EnumFunc func)
             : this(executionTimePerFrame)
         {
             IEnumerator e = func();

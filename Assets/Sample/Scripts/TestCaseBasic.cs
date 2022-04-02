@@ -13,7 +13,7 @@ namespace AillieoUtils.EasyTimeSlicing.Sample
             TestActionArray();
             TestActionEnumerable();
             TestStateMachineFunc();
-            TestCoroutineFunc();
+            TestEnumFunc();
         }
 
         [ContextMenu(nameof(TestActionArray))]
@@ -33,7 +33,7 @@ namespace AillieoUtils.EasyTimeSlicing.Sample
         [ContextMenu(nameof(TestStateMachineFunc))]
         private void TestStateMachineFunc()
         {
-            StateMachineFunc func = (ref int state) =>
+            OpenStateMachineFunc func = (ref int state) =>
             {
                 TaskCreateHelper.ExecuteRandomTask(state);
                 return state++ == 10;
@@ -41,13 +41,13 @@ namespace AillieoUtils.EasyTimeSlicing.Sample
             SliceableTask task = new SliceableTask(0.01f, 1, func);
         }
 
-        [ContextMenu(nameof(TestCoroutineFunc))]
-        private void TestCoroutineFunc()
+        [ContextMenu(nameof(TestEnumFunc))]
+        private void TestEnumFunc()
         {
-            SliceableTask task = new SliceableTask(0.01f, CoFunc);
+            SliceableTask task = new SliceableTask(0.01f, EnumFunc);
         }
 
-        private IEnumerator CoFunc()
+        private IEnumerator EnumFunc()
         {
             for (int state = 1; state <= 10; state++)
             {
