@@ -1,6 +1,8 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using UnityEngine;
+using UnityEngine.Assertions;
 
 namespace AillieoUtils.EasyTimeSlicing
 {
@@ -29,6 +31,16 @@ namespace AillieoUtils.EasyTimeSlicing
 
         private SliceableTask(float executionTimePerFrame)
         {
+            if (executionTimePerFrame < 0)
+            {
+                throw new ArgumentException($"{nameof(executionTimePerFrame)} less than 0");
+            }
+
+            if (executionTimePerFrame >= 1 / Application.targetFrameRate)
+            {
+                UnityEngine.Debug.LogWarning($"{nameof(executionTimePerFrame)} is {executionTimePerFrame} while expected time for frame {1 / Application.targetFrameRate}");
+            }
+
             this.executionTimePerFrame = executionTimePerFrame;
             TimeSlicingScheduler.Instance.Add(this);
         }
@@ -36,6 +48,11 @@ namespace AillieoUtils.EasyTimeSlicing
         public SliceableTask(float executionTimePerFrame, int initialState, OpenStateMachineFunc func)
             : this(executionTimePerFrame)
         {
+            if (func == null)
+            {
+                throw new ArgumentNullException(nameof(func));
+            }
+
             int state = initialState;
             this.func = () =>
             {
@@ -46,6 +63,11 @@ namespace AillieoUtils.EasyTimeSlicing
         public SliceableTask(float executionTimePerFrame, ClosedStateMachineFunc func)
             : this(executionTimePerFrame)
         {
+            if (func == null)
+            {
+                throw new ArgumentNullException(nameof(func));
+            }
+
             this.func = func;
         }
 
@@ -68,7 +90,18 @@ namespace AillieoUtils.EasyTimeSlicing
         public SliceableTask(float executionTimePerFrame, params Action[] actions)
             : this(executionTimePerFrame)
         {
+            if (actions == null)
+            {
+                throw new ArgumentNullException(nameof(actions));
+            }
+
             int actionCount = actions.Length;
+
+            if (actionCount == 0)
+            {
+                throw new ArgumentException(nameof(actions));
+            }
+
             int index = 0;
             this.func = () =>
             {
@@ -93,6 +126,11 @@ namespace AillieoUtils.EasyTimeSlicing
         public SliceableTask(float executionTimePerFrame, EnumFunc func)
             : this(executionTimePerFrame)
         {
+            if (func == null)
+            {
+                throw new ArgumentNullException(nameof(func));
+            }
+
             IEnumerator e = func();
             this.func = () =>
             {

@@ -29,28 +29,69 @@ namespace AillieoUtils.EasyTimeSlicing.Sample
                 return;
             }
 
-            new SliceableTask(executionTime, 0, InstantiateItem);
+            new SliceableTask(executionTime, InstantiateItem2);
         }
 
-        private bool InstantiateItem(ref int index)
+        [ContextMenu(nameof(RunInstantiateInCoroutine))]
+        private void RunInstantiateInCoroutine()
         {
-            int total = range * range;
-
-            if (index < 0 || index >= total)
+            if (prefab == null)
             {
-                return true;
+                UnityEngine.Debug.LogError("prefab null");
+                return;
             }
 
-            Vector2 basePos = - offset * Vector2.one * 0.5f * range;
-            int x = index / range;
-            int y = index % range;
+            StartCoroutine(InstantiateItem1());
+        }
 
-            GameObject go = Instantiate(prefab, this.transform);
-            go.transform.localPosition = new Vector3(basePos.x + offset.x * x, 0, basePos.y + offset.y * y);
+        private IEnumerator InstantiateItem1()
+        {
+            int index = 0;
+            int total = range * range;
 
-            index++;
+            while (index < total)
+            {
+                if (index < 0 || index >= total)
+                {
+                    break;
+                }
 
-            return index >= total;
+                Vector2 basePos = -offset * Vector2.one * 0.5f * range;
+                int x = index / range;
+                int y = index % range;
+
+                GameObject go = Instantiate(prefab, this.transform);
+                go.transform.localPosition = new Vector3(basePos.x + offset.x * x, 0, basePos.y + offset.y * y);
+
+                index++;
+
+                yield return new WaitForSeconds(executionTime);
+            }
+        }
+
+        private IEnumerator InstantiateItem2()
+        {
+            int index = 0;
+            int total = range * range;
+
+            while (index < total)
+            {
+                if (index < 0 || index >= total)
+                {
+                    yield break;
+                }
+
+                Vector2 basePos = -offset * Vector2.one * 0.5f * range;
+                int x = index / range;
+                int y = index % range;
+
+                GameObject go = Instantiate(prefab, this.transform);
+                go.transform.localPosition = new Vector3(basePos.x + offset.x * x, 0, basePos.y + offset.y * y);
+
+                index++;
+
+                yield return null;
+            }
         }
     }
 }

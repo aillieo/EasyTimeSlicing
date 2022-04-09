@@ -59,7 +59,7 @@ namespace AillieoUtils.EasyTimeSlicing
                     action();
                     handle.status = TaskStatus.Finished;
                 }
-            });
+            }, priority);
             return handle;
         }
 
@@ -115,7 +115,15 @@ namespace AillieoUtils.EasyTimeSlicing
         {
             if (queueHigh != null && queueHigh.Count > 0)
             {
-                queueHigh.Dequeue()?.Invoke();
+                try
+                {
+                    queueHigh.Dequeue()?.Invoke();
+                }
+                catch (Exception e)
+                {
+                    UnityEngine.Debug.LogError(e.StackTrace);
+                }
+
                 if (queueHigh.Count > 0)
                 {
                     return false;
@@ -124,7 +132,15 @@ namespace AillieoUtils.EasyTimeSlicing
 
             if (queueMedium != null && queueMedium.Count > 0)
             {
-                queueMedium.Dequeue()?.Invoke();
+                try
+                {
+                    queueMedium.Dequeue()?.Invoke();
+                }
+                catch (Exception e)
+                {
+                    UnityEngine.Debug.LogError(e.StackTrace);
+                }
+
                 if (queueMedium.Count > 0)
                 {
                     return false;
@@ -133,7 +149,15 @@ namespace AillieoUtils.EasyTimeSlicing
 
             if (queueLow != null && queueLow.Count > 0)
             {
-                queueLow.Dequeue()?.Invoke();
+                try
+                {
+                    queueLow.Dequeue()?.Invoke();
+                }
+                catch (Exception e)
+                {
+                    UnityEngine.Debug.LogError(e.StackTrace);
+                }
+
                 if (queueLow.Count > 0)
                 {
                     return false;
