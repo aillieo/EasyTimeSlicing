@@ -19,7 +19,7 @@ namespace AillieoUtils.EasyTimeSlicing.Sample
             float begin = Time.realtimeSinceStartup;
             Task.Delay(Random.Range(1, 6)).Wait();
             float end = Time.realtimeSinceStartup;
-            UnityEngine.Debug.LogError($"In frame {Time.frameCount}: task {index} cost time {end - begin} s");
+            UnityEngine.Debug.Log($"In frame {Time.frameCount}: task {index} cost time {end - begin} s");
         }
 
         public static Action CreateRandomTask(string info)
@@ -32,7 +32,7 @@ namespace AillieoUtils.EasyTimeSlicing.Sample
             float begin = Time.realtimeSinceStartup;
             Task.Delay(Random.Range(1, 6)).Wait();
             float end = Time.realtimeSinceStartup;
-            UnityEngine.Debug.LogError($"In frame {Time.frameCount}: task {info} cost time {end - begin} s");
+            UnityEngine.Debug.Log($"In frame {Time.frameCount}: task {info} cost time {end - begin} s");
         }
     }
 }
