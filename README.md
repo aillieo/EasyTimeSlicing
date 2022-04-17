@@ -4,7 +4,7 @@ EasyTimeSlicing makes it easy to slice heavy tasks into consequent game frames t
 
 ## Why time slicing
 
-There are often problems that have to execute a large number of tasks in a short period (like in a few frames), which, if not handled properly, can cause junk and reduce the performance of the game.
+There are often problems that have to execute a large number of tasks in a short period (like in a few frames), which, if not handled properly, can cause jank and reduce the performance of the game.
 
 Here's a common scenario that is to load some areas, including terrain, vegetation, buildings, and NPCs. We will test with two cases, first loading 3 areas and then 10 areas.
 
@@ -25,7 +25,7 @@ public IEnumerator LoadAreas1(List<int> requestedAera)
 }
 ```
 
-Job completed in a few frames, and the profiler shows like this, junk and spikes are obvious:
+Job completed in a few frames, and the profiler shows like this, jank and spikes are obvious:
 
 ![pic](./ScreenShots/pic_1_1_3.png)
 
@@ -98,7 +98,7 @@ The following chart is a summary that compares the three solutions in each cases
 | LoadAreas2 | 12                    | 12.75ms (78FPS)         | 40                     | 12.06ms (83FPS)          |
 | LoadAreas3 | 7                     | 11.92ms (84FPS)         | 21                     | 12.55ms (80FPS)          |
 
-Another practical application is to reduce the junk caused by object instantiation, by spreading the instantiating tasks over multiple frames while limiting the maximum execution time in one frame.
+Another practical application is to reduce the jank caused by object instantiation, by spreading the instantiating tasks over multiple frames while limiting the maximum execution time in one frame.
 
 ```c#
 private void RunInstantiateTask()
