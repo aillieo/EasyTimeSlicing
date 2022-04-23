@@ -41,6 +41,11 @@ namespace AillieoUtils.EasyTimeSlicing
 
         private readonly List<SliceableTask> managedTasks = new List<SliceableTask>();
 
+#if DEBUG
+        // 检查是否有重复的
+        private readonly HashSet<SliceableTask> validationSet = new HashSet<SliceableTask>();
+#endif
+
         internal void Add(SliceableTask task)
         {
             if (task == null)
@@ -141,7 +146,9 @@ namespace AillieoUtils.EasyTimeSlicing
 
 #if DEBUG
             // 检查是否有重复的
-            Assert.AreEqual(managedTasks.Count(o => o != null), new HashSet<SliceableTask>(managedTasks).Count);
+            validationSet.Clear();
+            validationSet.UnionWith(managedTasks);
+            Assert.AreEqual(managedTasks.Count(o => o != null), validationSet.Count(o => o != null));
 #endif
         }
     }

@@ -1,0 +1,11 @@
+{
+    "name": "com.aillieo.easy-time-slicing",
+    "displayName": "AillieoUtils EasyTimeSlicing",
+    "description": "AillieoUtils EasyTimeSlicing",
+    "version": "1.0.0",
+    "unity": "2019.4",
+    "license": "MIT",
+    "dependencies": {
+
+    }
+}
