@@ -79,6 +79,24 @@ namespace AillieoUtils.EasyTimeSlicing
             }
         }
 
+        public void ClearAll()
+        {
+            if (queueLow != null)
+            {
+                queueLow.Clear();
+            }
+
+            if (queueMedium != null)
+            {
+                queueMedium.Clear();
+            }
+
+            if (queueHigh != null)
+            {
+                queueHigh.Clear();
+            }
+        }
+
         private Queue<Action> GetQueue(Priority priority)
         {
             switch (priority)
