@@ -22,7 +22,7 @@ namespace AillieoUtils.EasyTimeSlicing
 
         private static TimeSlicingScheduler instance;
 
-        public static TimeSlicingScheduler Instance
+        internal static TimeSlicingScheduler Instance
         {
             get
             {
@@ -41,7 +41,7 @@ namespace AillieoUtils.EasyTimeSlicing
 
         private readonly List<SliceableTask> managedTasks = new List<SliceableTask>();
 
-#if DEBUG
+#if DEVELOPMENT_BUILD || UNITY_EDITOR
         // 检查是否有重复的
         private readonly HashSet<SliceableTask> validationSet = new HashSet<SliceableTask>();
 #endif
@@ -111,7 +111,11 @@ namespace AillieoUtils.EasyTimeSlicing
                     }
                     catch (Exception e)
                     {
+#if DEVELOPMENT_BUILD || UNITY_EDITOR
+                        Debug.LogError($"{e}\n......Registered: \n{task.creatingStackTrace}");
+#else
                         UnityEngine.Debug.LogError(e.StackTrace);
+#endif
                     }
 
                     if (task.status == TaskStatus.PendingRemove)
@@ -144,7 +148,7 @@ namespace AillieoUtils.EasyTimeSlicing
                 managedTasks.RemoveAll(o => o == null);
             }
 
-#if DEBUG
+#if DEVELOPMENT_BUILD || UNITY_EDITOR
             // 检查是否有重复的
             validationSet.Clear();
             validationSet.UnionWith(managedTasks);
