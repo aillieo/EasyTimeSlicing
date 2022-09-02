@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Diagnostics;
 using UnityEngine;
 using UnityEngine.Assertions;
 
@@ -17,13 +18,17 @@ namespace AillieoUtils.EasyTimeSlicing
 
     public class SliceableTask
     {
+#if DEVELOPMENT_BUILD || UNITY_EDITOR
+        internal StackTrace creatingStackTrace;
+#endif
+
+        private readonly ClosedStateMachineFunc func;
+
         public delegate bool OpenStateMachineFunc(ref int state);
 
         public delegate bool ClosedStateMachineFunc();
 
         public delegate IEnumerator EnumFunc();
-
-        private readonly ClosedStateMachineFunc func;
 
         public TaskStatus status { get; internal set; } = TaskStatus.Detached;
 
@@ -36,10 +41,14 @@ namespace AillieoUtils.EasyTimeSlicing
                 throw new ArgumentException($"{nameof(executionTimePerFrame)} less than 0");
             }
 
-            if (executionTimePerFrame >= 1 / Application.targetFrameRate)
+            if (Application.targetFrameRate > 0 && executionTimePerFrame >= 1 / Application.targetFrameRate)
             {
-                UnityEngine.Debug.LogWarning($"{nameof(executionTimePerFrame)} is {executionTimePerFrame} while expected time for frame {1 / Application.targetFrameRate}");
+                UnityEngine.Debug.LogWarning($"{nameof(executionTimePerFrame)} is {executionTimePerFrame} while expected time for frame {1f / Application.targetFrameRate}");
             }
+
+#if DEVELOPMENT_BUILD || UNITY_EDITOR
+            creatingStackTrace = new StackTrace(2, true);
+#endif
 
             this.executionTimePerFrame = executionTimePerFrame;
             TimeSlicingScheduler.Instance.Add(this);
