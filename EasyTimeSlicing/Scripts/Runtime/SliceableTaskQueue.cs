@@ -35,7 +35,7 @@ namespace AillieoUtils.EasyTimeSlicing
 
         public SliceableTaskQueue(float executionTimePerFrame)
         {
-            this.sliceableTask = new SliceableTask(executionTimePerFrame, ProcessTask);
+            this.sliceableTask = SliceableTask.Start(executionTimePerFrame, ProcessTask);
         }
 
         public void Enqueue(Action action, Priority priority = Priority.Medium)
