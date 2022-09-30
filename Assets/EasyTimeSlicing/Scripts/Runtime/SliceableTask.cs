@@ -34,7 +34,7 @@ namespace AillieoUtils.EasyTimeSlicing
 
         public float executionTimePerFrame { get; private set; }
 
-        private SliceableTask(float executionTimePerFrame)
+        private SliceableTask(float executionTimePerFrame, ClosedStateMachineFunc funcToExecute)
         {
             if (executionTimePerFrame < 0)
             {
@@ -51,11 +51,11 @@ namespace AillieoUtils.EasyTimeSlicing
 #endif
 
             this.executionTimePerFrame = executionTimePerFrame;
+            this.func = funcToExecute;
             TimeSlicingScheduler.Instance.Add(this);
         }
 
-        public SliceableTask(float executionTimePerFrame, int initialState, OpenStateMachineFunc func)
-            : this(executionTimePerFrame)
+        public static SliceableTask Start(float executionTimePerFrame, int initialState, OpenStateMachineFunc func)
         {
             if (func == null)
             {
@@ -63,28 +63,28 @@ namespace AillieoUtils.EasyTimeSlicing
             }
 
             int state = initialState;
-            this.func = () =>
+
+            return new SliceableTask(executionTimePerFrame, () =>
             {
                 return func(ref state);
-            };
+            });
         }
 
-        public SliceableTask(float executionTimePerFrame, ClosedStateMachineFunc func)
-            : this(executionTimePerFrame)
+        public static SliceableTask Start(float executionTimePerFrame, ClosedStateMachineFunc func)
         {
             if (func == null)
             {
                 throw new ArgumentNullException(nameof(func));
             }
 
-            this.func = func;
+            return new SliceableTask(executionTimePerFrame, func);
         }
 
-        public SliceableTask(float executionTimePerFrame, IEnumerable<Action> actions)
-            : this(executionTimePerFrame)
+        public static SliceableTask Start(float executionTimePerFrame, IEnumerable<Action> actions)
         {
             IEnumerator<Action> e = actions.GetEnumerator();
-            this.func = () =>
+
+            return new SliceableTask(executionTimePerFrame, () =>
             {
                 while (e.MoveNext())
                 {
@@ -93,11 +93,10 @@ namespace AillieoUtils.EasyTimeSlicing
                 }
 
                 return true;
-            };
+            });
         }
 
-        public SliceableTask(float executionTimePerFrame, params Action[] actions)
-            : this(executionTimePerFrame)
+        public static SliceableTask Start(float executionTimePerFrame, params Action[] actions)
         {
             if (actions == null)
             {
@@ -112,7 +111,8 @@ namespace AillieoUtils.EasyTimeSlicing
             }
 
             int index = 0;
-            this.func = () =>
+
+            return new SliceableTask(executionTimePerFrame, () =>
             {
                 if (index < actionCount)
                 {
@@ -129,11 +129,10 @@ namespace AillieoUtils.EasyTimeSlicing
                 }
 
                 throw new Exception();
-            };
+            });
         }
 
-        public SliceableTask(float executionTimePerFrame, EnumFunc func)
-            : this(executionTimePerFrame)
+        public static SliceableTask Start(float executionTimePerFrame, EnumFunc func)
         {
             if (func == null)
             {
@@ -141,7 +140,7 @@ namespace AillieoUtils.EasyTimeSlicing
             }
 
             IEnumerator e = func();
-            this.func = () =>
+            return new SliceableTask(executionTimePerFrame, () =>
             {
                 if (e.MoveNext())
                 {
@@ -149,7 +148,7 @@ namespace AillieoUtils.EasyTimeSlicing
                 }
 
                 return true;
-            };
+            });
         }
 
         public void Cancel()
