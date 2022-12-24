@@ -52,14 +52,15 @@ namespace AillieoUtils.EasyTimeSlicing
         public Handle EnqueueWithHandle(Action action, Priority priority = Priority.Medium)
         {
             Handle handle = new Handle();
-            Enqueue(() =>
-            {
-                if (handle.status == TaskStatus.Queued)
+            Enqueue(
+                () =>
                 {
-                    action();
-                    handle.status = TaskStatus.Finished;
-                }
-            }, priority);
+                    if (handle.status == TaskStatus.Queued)
+                    {
+                        action();
+                        handle.status = TaskStatus.Finished;
+                    }
+                }, priority);
             return handle;
         }
 
@@ -156,7 +157,7 @@ namespace AillieoUtils.EasyTimeSlicing
                 }
                 catch (Exception e)
                 {
-                    UnityEngine.Debug.LogError(e.StackTrace);
+                    UnityEngine.Debug.LogException(e);
                 }
 
                 if (queueMedium.Count > 0)
