@@ -1,0 +1,16 @@
+{
+    "name": "AillieoUtils.EasyTimeSlicing.Sample",
+    "rootNamespace": "",
+    "references": [
+        "AillieoUtils.EasyTimeSlicing"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

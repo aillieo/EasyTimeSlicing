@@ -68,7 +68,7 @@ namespace AillieoUtils.EasyTimeSlicing
             return false;
         }
 
-        public static bool TryExecute<T>(Func<T> func, T o, float expectedExecutionTime, out T result)
+        public static bool TryExecute<T>(Func<T> func, float expectedExecutionTime, out T result)
         {
             Assert.IsNotNull(func);
 
@@ -82,7 +82,7 @@ namespace AillieoUtils.EasyTimeSlicing
             return false;
         }
 
-        public static bool TryExecute<T, R>(Func<T, R> func, T data, float expectedExecutionTime, out R result)
+        public static bool TryExecute<T, TResult>(Func<T, TResult> func, T data, float expectedExecutionTime, out TResult result)
         {
             Assert.IsNotNull(func);
 
@@ -105,7 +105,7 @@ namespace AillieoUtils.EasyTimeSlicing
 
             if (expectedExecutionTime >= frameInterval)
             {
-                string message = $"Too much time requested, the task will never execute: expectedExecutionTime={expectedExecutionTime} while frameInterval={frameInterval}.";
+                var message = $"Too much time requested, the task will never execute: expectedExecutionTime={expectedExecutionTime} while frameInterval={frameInterval}.";
 #if DEVELOPMENT_BUILD || UNITY_EDITOR
                 UnityEngine.Debug.LogError(message);
 #else
