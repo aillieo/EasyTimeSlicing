@@ -120,7 +120,7 @@ namespace AillieoUtils.EasyTimeSlicing
 #if DEVELOPMENT_BUILD || UNITY_EDITOR
                         Debug.LogError($"{e}\n......Registered: \n{task.creatingStackTrace}");
 #else
-                        UnityEngine.Debug.LogError(e.StackTrace);
+                        UnityEngine.Debug.LogException(e);
 #endif
                     }
 
