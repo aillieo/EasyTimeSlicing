@@ -12,7 +12,7 @@ namespace AillieoUtils.EasyTimeSlicing.Sample
 
         private void Start()
         {
-            queue = new SliceableTaskQueue(0.003f);
+            queue = SliceableTaskQueue.Create(0.003f);
             index = 1;
         }
 

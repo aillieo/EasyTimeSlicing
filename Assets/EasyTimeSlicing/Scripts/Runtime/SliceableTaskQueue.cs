@@ -1,10 +1,27 @@
-using System;
-using System.Collections.Generic;
+// -----------------------------------------------------------------------
+// <copyright file="SliceableTaskQueue.cs" company="AillieoTech">
+// Copyright (c) AillieoTech. All rights reserved.
+// </copyright>
+// -----------------------------------------------------------------------
 
 namespace AillieoUtils.EasyTimeSlicing
 {
+    using System;
+    using System.Collections.Generic;
+
     public class SliceableTaskQueue
     {
+        private readonly SliceableTask sliceableTask;
+
+        private Queue<Action> queueLow;
+        private Queue<Action> queueMedium;
+        private Queue<Action> queueHigh;
+
+        private SliceableTaskQueue(float executionTimePerFrame)
+        {
+            this.sliceableTask = SliceableTask.Start(executionTimePerFrame, this.ProcessTask);
+        }
+
         public enum Priority
         {
             Low,
@@ -12,47 +29,28 @@ namespace AillieoUtils.EasyTimeSlicing
             High,
         }
 
-        public class Handle
+        public bool Scheduling { get => this.sliceableTask.status == TaskStatus.Executing || this.sliceableTask.status == TaskStatus.Queued; }
+
+        public static SliceableTaskQueue Create(float executionTimePerFrame)
         {
-            public TaskStatus status { get; internal set; } = TaskStatus.Queued;
-
-            public void Cancel()
-            {
-                if (status == TaskStatus.Queued)
-                {
-                    status = TaskStatus.Detached;
-                }
-            }
-        }
-
-        private readonly SliceableTask sliceableTask;
-
-        private Queue<Action> queueLow;
-        private Queue<Action> queueMedium;
-        private Queue<Action> queueHigh;
-
-        public bool Scheduling { get => sliceableTask.status == TaskStatus.Executing || sliceableTask.status == TaskStatus.Queued; }
-
-        public SliceableTaskQueue(float executionTimePerFrame)
-        {
-            this.sliceableTask = SliceableTask.Start(executionTimePerFrame, ProcessTask);
+            return new SliceableTaskQueue(executionTimePerFrame);
         }
 
         public void Enqueue(Action action, Priority priority = Priority.Medium)
         {
-            Queue<Action> queue = GetQueue(priority);
+            Queue<Action> queue = this.GetQueue(priority);
             queue.Enqueue(action);
-            if (!Scheduling)
+            if (!this.Scheduling)
             {
-                sliceableTask.status = TaskStatus.Detached;
-                Resume();
+                this.sliceableTask.status = TaskStatus.Detached;
+                this.Resume();
             }
         }
 
         public Handle EnqueueWithHandle(Action action, Priority priority = Priority.Medium)
         {
-            Handle handle = new Handle();
-            Enqueue(
+            var handle = new Handle();
+            this.Enqueue(
                 () =>
                 {
                     if (handle.status == TaskStatus.Queued)
@@ -66,35 +64,35 @@ namespace AillieoUtils.EasyTimeSlicing
 
         public void Pause()
         {
-            if (Scheduling)
+            if (this.Scheduling)
             {
-                TimeSlicingScheduler.Instance.Remove(sliceableTask);
+                TimeSlicingScheduler.Instance.Remove(this.sliceableTask);
             }
         }
 
         public void Resume()
         {
-            if (!Scheduling)
+            if (!this.Scheduling)
             {
-                TimeSlicingScheduler.Instance.Add(sliceableTask);
+                TimeSlicingScheduler.Instance.Add(this.sliceableTask);
             }
         }
 
         public void ClearAll()
         {
-            if (queueLow != null)
+            if (this.queueLow != null)
             {
-                queueLow.Clear();
+                this.queueLow.Clear();
             }
 
-            if (queueMedium != null)
+            if (this.queueMedium != null)
             {
-                queueMedium.Clear();
+                this.queueMedium.Clear();
             }
 
-            if (queueHigh != null)
+            if (this.queueHigh != null)
             {
-                queueHigh.Clear();
+                this.queueHigh.Clear();
             }
         }
 
@@ -103,26 +101,26 @@ namespace AillieoUtils.EasyTimeSlicing
             switch (priority)
             {
             case Priority.Low:
-                if (queueLow == null)
+                if (this.queueLow == null)
                 {
-                    queueLow = new Queue<Action>();
+                    this.queueLow = new Queue<Action>();
                 }
 
-                return queueLow;
+                return this.queueLow;
             case Priority.Medium:
-                if (queueMedium == null)
+                if (this.queueMedium == null)
                 {
-                    queueMedium = new Queue<Action>();
+                    this.queueMedium = new Queue<Action>();
                 }
 
-                return queueMedium;
+                return this.queueMedium;
             case Priority.High:
-                if (queueHigh == null)
+                if (this.queueHigh == null)
                 {
-                    queueHigh = new Queue<Action>();
+                    this.queueHigh = new Queue<Action>();
                 }
 
-                return queueHigh;
+                return this.queueHigh;
             default:
                 break;
             }
@@ -132,58 +130,71 @@ namespace AillieoUtils.EasyTimeSlicing
 
         private bool ProcessTask()
         {
-            if (queueHigh != null && queueHigh.Count > 0)
+            if (this.queueHigh != null && this.queueHigh.Count > 0)
             {
                 try
                 {
-                    queueHigh.Dequeue()?.Invoke();
+                    this.queueHigh.Dequeue()?.Invoke();
                 }
                 catch (Exception e)
                 {
                     UnityEngine.Debug.LogError(e.StackTrace);
                 }
 
-                if (queueHigh.Count > 0)
+                if (this.queueHigh.Count > 0)
                 {
                     return false;
                 }
             }
 
-            if (queueMedium != null && queueMedium.Count > 0)
+            if (this.queueMedium != null && this.queueMedium.Count > 0)
             {
                 try
                 {
-                    queueMedium.Dequeue()?.Invoke();
+                    this.queueMedium.Dequeue()?.Invoke();
                 }
                 catch (Exception e)
                 {
                     UnityEngine.Debug.LogException(e);
                 }
 
-                if (queueMedium.Count > 0)
+                if (this.queueMedium.Count > 0)
                 {
                     return false;
                 }
             }
 
-            if (queueLow != null && queueLow.Count > 0)
+            if (this.queueLow != null && this.queueLow.Count > 0)
             {
                 try
                 {
-                    queueLow.Dequeue()?.Invoke();
+                    this.queueLow.Dequeue()?.Invoke();
                 }
                 catch (Exception e)
                 {
                     UnityEngine.Debug.LogError(e.StackTrace);
                 }
 
-                if (queueLow.Count > 0)
+                if (this.queueLow.Count > 0)
                 {
                     return false;
                 }
             }
 
             return true;
+        }
+
+        public class Handle
+        {
+            public TaskStatus status { get; internal set; } = TaskStatus.Queued;
+
+            public void Cancel()
+            {
+                if (this.status == TaskStatus.Queued)
+                {
+                    this.status = TaskStatus.Detached;
+                }
+            }
         }
     }
 }

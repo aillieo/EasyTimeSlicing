@@ -29,7 +29,7 @@ namespace AillieoUtils.EasyTimeSlicing.Sample
                 return;
             }
 
-            new SliceableTask(executionTime, InstantiateItem2);
+            SliceableTask.Start(executionTime, InstantiateItem2);
         }
 
         [ContextMenu(nameof(RunInstantiateInCoroutine))]

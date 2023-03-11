@@ -1,26 +1,28 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using UnityEngine;
-using UnityEngine.Assertions;
+// -----------------------------------------------------------------------
+// <copyright file="TimeSlicingScheduler.cs" company="AillieoTech">
+// Copyright (c) AillieoTech. All rights reserved.
+// </copyright>
+// -----------------------------------------------------------------------
 
 namespace AillieoUtils.EasyTimeSlicing
 {
-    [DefaultExecutionOrder(-100)]
-    public class TimeSlicingScheduler : MonoBehaviour
-    {
-        //[RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
-        private static void CreateInstance()
-        {
-            if (instance == null)
-            {
-                GameObject go = new GameObject($"[{nameof(TimeSlicingScheduler)}]");
-                instance = go.AddComponent<TimeSlicingScheduler>();
-                DontDestroyOnLoad(go);
-            }
-        }
+    using System;
+    using System.Collections.Generic;
+    using System.Linq;
+    using UnityEngine;
+    using UnityEngine.Assertions;
 
+    [DefaultExecutionOrder(-100)]
+    internal class TimeSlicingScheduler : MonoBehaviour
+    {
         private static TimeSlicingScheduler instance;
+
+        private readonly List<SliceableTask> managedTasks = new List<SliceableTask>();
+
+#if DEVELOPMENT_BUILD || UNITY_EDITOR
+        // 检查是否有重复的
+        private readonly HashSet<SliceableTask> validationSet = new HashSet<SliceableTask>();
+#endif
 
         internal static TimeSlicingScheduler Instance
         {
@@ -30,21 +32,6 @@ namespace AillieoUtils.EasyTimeSlicing
                 return instance;
             }
         }
-
-        private void Awake()
-        {
-            if (instance != null && instance != this)
-            {
-                Destroy(this);
-            }
-        }
-
-        private readonly List<SliceableTask> managedTasks = new List<SliceableTask>();
-
-#if DEVELOPMENT_BUILD || UNITY_EDITOR
-        // 检查是否有重复的
-        private readonly HashSet<SliceableTask> validationSet = new HashSet<SliceableTask>();
-#endif
 
         internal void Add(SliceableTask task)
         {
@@ -59,7 +46,7 @@ namespace AillieoUtils.EasyTimeSlicing
             }
             else if (task.status == TaskStatus.Detached)
             {
-                managedTasks.Add(task);
+                this.managedTasks.Add(task);
                 task.status = TaskStatus.Queued;
             }
             else
@@ -76,13 +63,32 @@ namespace AillieoUtils.EasyTimeSlicing
             }
         }
 
+        // [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
+        private static void CreateInstance()
+        {
+            if (instance == null)
+            {
+                var go = new GameObject($"[{nameof(TimeSlicingScheduler)}]");
+                instance = go.AddComponent<TimeSlicingScheduler>();
+                DontDestroyOnLoad(go);
+            }
+        }
+
+        private void Awake()
+        {
+            if (instance != null && instance != this)
+            {
+                Destroy(this);
+            }
+        }
+
         private void Update()
         {
-            int taskToRemove = 0;
-            int taskCount = managedTasks.Count;
-            for (int i = 0; i < taskCount; ++i)
+            var taskToRemove = 0;
+            var taskCount = this.managedTasks.Count;
+            for (var i = 0; i < taskCount; ++i)
             {
-                SliceableTask task = managedTasks[i];
+                SliceableTask task = this.managedTasks[i];
                 if (task == null)
                 {
                     taskToRemove++;
@@ -92,18 +98,18 @@ namespace AillieoUtils.EasyTimeSlicing
                 if (task.status == TaskStatus.PendingRemove)
                 {
                     task.status = TaskStatus.Detached;
-                    managedTasks[i] = null;
+                    this.managedTasks[i] = null;
                     taskToRemove++;
                     continue;
                 }
 
                 Assert.AreEqual(task.status, TaskStatus.Queued);
 
-                float beginTime = Time.realtimeSinceStartup;
-                float executionTime = task.executionTimePerFrame;
+                var beginTime = Time.realtimeSinceStartup;
+                var executionTime = task.executionTimePerFrame;
                 while (true)
                 {
-                    bool finished = false;
+                    var finished = false;
                     task.status = TaskStatus.Executing;
                     try
                     {
@@ -121,7 +127,7 @@ namespace AillieoUtils.EasyTimeSlicing
                     if (task.status == TaskStatus.PendingRemove)
                     {
                         task.status = TaskStatus.Detached;
-                        managedTasks[i] = null;
+                        this.managedTasks[i] = null;
                         taskToRemove++;
                         break;
                     }
@@ -132,7 +138,7 @@ namespace AillieoUtils.EasyTimeSlicing
                     if (finished)
                     {
                         task.status = TaskStatus.Finished;
-                        managedTasks[i] = null;
+                        this.managedTasks[i] = null;
                         taskToRemove++;
                         break;
                     }
@@ -145,14 +151,14 @@ namespace AillieoUtils.EasyTimeSlicing
 
             if (taskToRemove > 8 || taskToRemove >= (taskCount >> 2))
             {
-                managedTasks.RemoveAll(o => o == null);
+                this.managedTasks.RemoveAll(o => o == null);
             }
 
 #if DEVELOPMENT_BUILD || UNITY_EDITOR
             // 检查是否有重复的
-            validationSet.Clear();
-            validationSet.UnionWith(managedTasks);
-            Assert.AreEqual(managedTasks.Count(o => o != null), validationSet.Count(o => o != null));
+            this.validationSet.Clear();
+            this.validationSet.UnionWith(this.managedTasks);
+            Assert.AreEqual(this.managedTasks.Count(o => o != null), this.validationSet.Count(o => o != null));
 #endif
         }
     }
