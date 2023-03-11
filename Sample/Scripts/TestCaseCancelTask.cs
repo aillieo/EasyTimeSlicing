@@ -20,7 +20,7 @@ namespace AillieoUtils.EasyTimeSlicing.Sample
             if (task == null)
             {
                 var actions = Enumerable.Range(1, 1000).Select(TaskCreateHelper.CreateRandomTask);
-                task = new SliceableTask(0.01f, actions);
+                task = SliceableTask.Start(0.01f, actions);
             }
         }
 

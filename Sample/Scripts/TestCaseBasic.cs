@@ -20,14 +20,14 @@ namespace AillieoUtils.EasyTimeSlicing.Sample
         private void TestActionArray()
         {
             var actions = Enumerable.Range(1, 10).Select(TaskCreateHelper.CreateRandomTask).ToArray();
-            SliceableTask task = new SliceableTask(0.01f, actions);
+            SliceableTask task = SliceableTask.Start(0.01f, actions);
         }
 
         [ContextMenu(nameof(TestActionEnumerable))]
         private void TestActionEnumerable()
         {
             var actions = Enumerable.Range(1, 10).Select(TaskCreateHelper.CreateRandomTask);
-            SliceableTask task = new SliceableTask(0.01f, actions);
+            SliceableTask task = SliceableTask.Start(0.01f, actions);
         }
 
         [ContextMenu(nameof(TestStateMachineFunc))]
@@ -38,13 +38,13 @@ namespace AillieoUtils.EasyTimeSlicing.Sample
                 TaskCreateHelper.ExecuteRandomTask(state);
                 return state++ == 10;
             };
-            SliceableTask task = new SliceableTask(0.01f, 1, func);
+            SliceableTask task = SliceableTask.Start(0.01f, 1, func);
         }
 
         [ContextMenu(nameof(TestEnumFunc))]
         private void TestEnumFunc()
         {
-            SliceableTask task = new SliceableTask(0.01f, EnumFunc);
+            SliceableTask task = SliceableTask.Start(0.01f, EnumFunc);
         }
 
         private IEnumerator EnumFunc()
