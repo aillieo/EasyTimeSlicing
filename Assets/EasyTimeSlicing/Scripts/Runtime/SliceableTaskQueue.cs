@@ -9,6 +9,9 @@ namespace AillieoUtils.EasyTimeSlicing
     using System;
     using System.Collections.Generic;
 
+    /// <summary>
+    /// Represents a queue of tasks that can be scheduled and executed in slices.
+    /// </summary>
     public class SliceableTaskQueue
     {
         private readonly SliceableTask sliceableTask;
@@ -17,36 +20,83 @@ namespace AillieoUtils.EasyTimeSlicing
         private Queue<Action> queueMedium;
         private Queue<Action> queueHigh;
 
-        private SliceableTaskQueue(float executionTimePerFrame)
+        private SliceableTaskQueue(float timeBudgetPerFrame)
         {
-            this.sliceableTask = SliceableTask.Start(executionTimePerFrame, this.ProcessTask);
+            this.sliceableTask = SliceableTask.Start(timeBudgetPerFrame, this.ProcessTask);
         }
 
+        /// <summary>
+        /// Represents the priority levels for enqueuing tasks.
+        /// </summary>
         public enum Priority
         {
+            /// <summary>
+            /// Low priority level.
+            /// </summary>
             Low,
+
+            /// <summary>
+            /// Medium priority level.
+            /// </summary>
             Medium,
+
+            /// <summary>
+            /// High priority level.
+            /// </summary>
             High,
         }
 
-        public bool Scheduling { get => this.sliceableTask.status == TaskStatus.Executing || this.sliceableTask.status == TaskStatus.Queued; }
-
-        public static SliceableTaskQueue Create(float executionTimePerFrame)
+        /// <summary>
+        /// Gets or sets the value indicating the time budget per frame for task execution.
+        /// </summary>
+        public float timeBudgetPerFrame
         {
-            return new SliceableTaskQueue(executionTimePerFrame);
+            get => this.sliceableTask.timeBudgetPerFrame;
+            set => this.sliceableTask.timeBudgetPerFrame = value;
         }
 
+        /// <summary>
+        /// Gets a value indicating whether the task queue is currently scheduling and executing tasks.
+        /// </summary>
+        public bool scheduling { get => this.sliceableTask.status == TaskStatus.Executing || this.sliceableTask.status == TaskStatus.Queued; }
+
+        /// <summary>
+        /// Gets the number of pending tasks in the task queue.
+        /// </summary>
+        public int pendingTasks { get => this.GetPendingTasks(Priority.High) + this.GetPendingTasks(Priority.Medium) + this.GetPendingTasks(Priority.Low); }
+
+        /// <summary>
+        /// Creates a new instance of the <see cref="SliceableTaskQueue"/> class with the specified time budget per frame..
+        /// </summary>
+        /// <param name="timeBudgetPerFrame">The time budget per frame for task execution.</param>
+        /// <returns>A new instance of the <see cref="SliceableTaskQueue"/> class.</returns>
+        public static SliceableTaskQueue Create(float timeBudgetPerFrame)
+        {
+            return new SliceableTaskQueue(timeBudgetPerFrame);
+        }
+
+        /// <summary>
+        /// Enqueues a task with the specified priority.
+        /// </summary>
+        /// <param name="action">The task to enqueue.</param>
+        /// <param name="priority">The priority of the task. The default is <see cref="Priority.Medium"/>.</param>
         public void Enqueue(Action action, Priority priority = Priority.Medium)
         {
             Queue<Action> queue = this.GetQueue(priority);
             queue.Enqueue(action);
-            if (!this.Scheduling)
+            if (!this.scheduling)
             {
                 this.sliceableTask.status = TaskStatus.Detached;
                 this.Resume();
             }
         }
 
+        /// <summary>
+        /// Enqueues a task with the specified priority and returns a handle for the task.
+        /// </summary>
+        /// <param name="action">The task to enqueue.</param>
+        /// <param name="priority">The priority of the task. The default is <see cref="Priority.Medium"/>.</param>
+        /// <returns>A handle for the enqueued task.</returns>
         public Handle EnqueueWithHandle(Action action, Priority priority = Priority.Medium)
         {
             var handle = new Handle();
@@ -55,29 +105,45 @@ namespace AillieoUtils.EasyTimeSlicing
                 {
                     if (handle.status == TaskStatus.Queued)
                     {
-                        action();
-                        handle.status = TaskStatus.Finished;
+                        try
+                        {
+                            action();
+                        }
+                        finally
+                        {
+                            handle.status = TaskStatus.Finished;
+                        }
                     }
-                }, priority);
+                },
+                priority);
             return handle;
         }
 
+        /// <summary>
+        /// Pauses the task queue, suspending task scheduling and execution.
+        /// </summary>
         public void Pause()
         {
-            if (this.Scheduling)
+            if (this.scheduling)
             {
                 TimeSlicingScheduler.Instance.Remove(this.sliceableTask);
             }
         }
 
+        /// <summary>
+        /// Resumes the task queue, allowing task scheduling and execution.
+        /// </summary>
         public void Resume()
         {
-            if (!this.Scheduling)
+            if (!this.scheduling)
             {
                 TimeSlicingScheduler.Instance.Add(this.sliceableTask);
             }
         }
 
+        /// <summary>
+        /// Clears all the tasks in the task queue.
+        /// </summary>
         public void ClearAll()
         {
             if (this.queueLow != null)
@@ -96,36 +162,69 @@ namespace AillieoUtils.EasyTimeSlicing
             }
         }
 
+        /// <summary>
+        /// Gets the number of pending tasks with the specifiedpriority in the task queue.
+        /// </summary>
+        /// <param name="priority">The priority level.</param>
+        /// <returns>The number of pending tasks with the specified priority.</returns>
+        public int GetPendingTasks(Priority priority)
+        {
+            switch (priority)
+            {
+                case Priority.Low:
+                    if (this.queueLow == null)
+                    {
+                        return 0;
+                    }
+
+                    return this.queueLow.Count;
+                case Priority.Medium:
+                    if (this.queueMedium == null)
+                    {
+                        return 0;
+                    }
+
+                    return this.queueMedium.Count;
+                case Priority.High:
+                    if (this.queueHigh == null)
+                    {
+                        return 0;
+                    }
+
+                    return this.queueHigh.Count;
+            }
+
+            throw new IndexOutOfRangeException(nameof(priority));
+        }
+
         private Queue<Action> GetQueue(Priority priority)
         {
             switch (priority)
             {
-            case Priority.Low:
-                if (this.queueLow == null)
-                {
-                    this.queueLow = new Queue<Action>();
-                }
+                case Priority.Low:
+                    if (this.queueLow == null)
+                    {
+                        this.queueLow = new Queue<Action>();
+                    }
 
-                return this.queueLow;
-            case Priority.Medium:
-                if (this.queueMedium == null)
-                {
-                    this.queueMedium = new Queue<Action>();
-                }
+                    return this.queueLow;
+                case Priority.Medium:
+                    if (this.queueMedium == null)
+                    {
+                        this.queueMedium = new Queue<Action>();
+                    }
 
-                return this.queueMedium;
-            case Priority.High:
-                if (this.queueHigh == null)
-                {
-                    this.queueHigh = new Queue<Action>();
-                }
+                    return this.queueMedium;
+                case Priority.High:
+                    if (this.queueHigh == null)
+                    {
+                        this.queueHigh = new Queue<Action>();
+                    }
 
-                return this.queueHigh;
-            default:
-                break;
+                    return this.queueHigh;
             }
 
-            throw new Exception();
+            throw new IndexOutOfRangeException(nameof(priority));
         }
 
         private bool ProcessTask()
@@ -138,7 +237,7 @@ namespace AillieoUtils.EasyTimeSlicing
                 }
                 catch (Exception e)
                 {
-                    UnityEngine.Debug.LogError(e.StackTrace);
+                    UnityEngine.Debug.LogException(e);
                 }
 
                 if (this.queueHigh.Count > 0)
@@ -172,7 +271,7 @@ namespace AillieoUtils.EasyTimeSlicing
                 }
                 catch (Exception e)
                 {
-                    UnityEngine.Debug.LogError(e.StackTrace);
+                    UnityEngine.Debug.LogException(e);
                 }
 
                 if (this.queueLow.Count > 0)
@@ -184,10 +283,19 @@ namespace AillieoUtils.EasyTimeSlicing
             return true;
         }
 
+        /// <summary>
+        /// Represents a handle for a task in the task queue.
+        /// </summary>
         public class Handle
         {
+            /// <summary>
+            /// Gets the status of the task.
+            /// </summary>
             public TaskStatus status { get; internal set; } = TaskStatus.Queued;
 
+            /// <summary>
+            /// Cancels the task, detaching it from the task queue.
+            /// </summary>
             public void Cancel()
             {
                 if (this.status == TaskStatus.Queued)

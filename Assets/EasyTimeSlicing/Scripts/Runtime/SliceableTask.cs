@@ -46,7 +46,7 @@ namespace AillieoUtils.EasyTimeSlicing
     /// <summary>
     /// A <see cref="SliceableTask"/> contains one or more tasks.
     /// Once started, a certain amount of tasks will be executed each frame,
-    /// and try not to exceed the specified time budget <see cref="executionTimePerFrame"/>.
+    /// and try not to exceed the specified time budget <see cref="timeBudgetPerFrame"/>.
     /// </summary>
     public sealed class SliceableTask
     {
@@ -56,23 +56,25 @@ namespace AillieoUtils.EasyTimeSlicing
 
         private readonly ClosedStateMachineFunc func;
 
-        private SliceableTask(float executionTimePerFrame, ClosedStateMachineFunc funcToExecute, int skipFrames)
+        private float timeBudgetPerFrameValue;
+
+        private SliceableTask(float timeBudgetPerFrame, ClosedStateMachineFunc funcToExecute, int skipFrames)
         {
-            if (executionTimePerFrame < 0)
+            if (timeBudgetPerFrame < 0)
             {
-                throw new ArgumentException($"{nameof(executionTimePerFrame)} less than 0");
+                throw new ArgumentException($"{nameof(timeBudgetPerFrame)} less than 0");
             }
 
-            if (Application.targetFrameRate > 0 && executionTimePerFrame >= 1 / Application.targetFrameRate)
+            if (Application.targetFrameRate > 0 && timeBudgetPerFrame >= TimeSlicingUtils.frameInterval)
             {
-                UnityEngine.Debug.LogWarning($"{nameof(executionTimePerFrame)} is {executionTimePerFrame} while expected time for frame {1f / Application.targetFrameRate}");
+                UnityEngine.Debug.LogWarning($"{nameof(timeBudgetPerFrame)} is {timeBudgetPerFrame} while expected time for frame {TimeSlicingUtils.frameInterval}");
             }
 
 #if DEVELOPMENT_BUILD || UNITY_EDITOR
             this.creatingStackTrace = new StackTrace(skipFrames, true);
 #endif
 
-            this.executionTimePerFrame = executionTimePerFrame;
+            this.timeBudgetPerFrame = timeBudgetPerFrame;
             this.func = funcToExecute;
             TimeSlicingScheduler.Instance.Add(this);
         }
@@ -104,18 +106,31 @@ namespace AillieoUtils.EasyTimeSlicing
         public TaskStatus status { get; internal set; } = TaskStatus.Detached;
 
         /// <summary>
-        /// Gets a value indicating the expected execution time in a single frame.
+        /// Gets or sets the value indicating the time budget per frame for task execution.
         /// </summary>
-        public float executionTimePerFrame { get; private set; }
+        public float timeBudgetPerFrame
+        {
+            get => this.timeBudgetPerFrameValue;
+
+            set
+            {
+                if (Application.targetFrameRate > 0 && value >= TimeSlicingUtils.frameInterval)
+                {
+                    UnityEngine.Debug.LogWarning($"{nameof(this.timeBudgetPerFrame)} is {value} while expected time for frame {TimeSlicingUtils.frameInterval}");
+                }
+
+                this.timeBudgetPerFrameValue = value;
+            }
+        }
 
         /// <summary>
         /// Start a <see cref="SliceableTask"/> with an <see cref="OpenStateMachineFunc"/>.
         /// </summary>
-        /// <param name="executionTimePerFrame">The value for <see cref="executionTimePerFrame"/>.</param>
-        /// <param name="initialState">The initial state of the <see cref="executionTimePerFrame"/>.</param>
+        /// <param name="timeBudgetPerFrame">The value for <see cref="timeBudgetPerFrame"/>.</param>
+        /// <param name="initialState">The initial state of the <see cref="OpenStateMachineFunc"/>.</param>
         /// <param name="func">The state machine function contains tasks.</param>
         /// <returns>The <see cref="SliceableTask"/> instance create.</returns>
-        public static SliceableTask Start(float executionTimePerFrame, int initialState, OpenStateMachineFunc func)
+        public static SliceableTask Start(float timeBudgetPerFrame, int initialState, OpenStateMachineFunc func)
         {
             if (func == null)
             {
@@ -125,7 +140,7 @@ namespace AillieoUtils.EasyTimeSlicing
             var state = initialState;
 
             return new SliceableTask(
-                executionTimePerFrame,
+                timeBudgetPerFrame,
                 () =>
                 {
                     return func(ref state);
@@ -136,31 +151,31 @@ namespace AillieoUtils.EasyTimeSlicing
         /// <summary>
         /// Start a <see cref="SliceableTask"/> with a <see cref="ClosedStateMachineFunc"/>.
         /// </summary>
-        /// <param name="executionTimePerFrame">The value for <see cref="executionTimePerFrame"/>.</param>
+        /// <param name="timeBudgetPerFrame">The value for <see cref="timeBudgetPerFrame"/>.</param>
         /// <param name="func">The state machine function contains tasks.</param>
         /// <returns>The <see cref="SliceableTask"/> instance create.</returns>
-        public static SliceableTask Start(float executionTimePerFrame, ClosedStateMachineFunc func)
+        public static SliceableTask Start(float timeBudgetPerFrame, ClosedStateMachineFunc func)
         {
             if (func == null)
             {
                 throw new ArgumentNullException(nameof(func));
             }
 
-            return new SliceableTask(executionTimePerFrame, func, 2);
+            return new SliceableTask(timeBudgetPerFrame, func, 2);
         }
 
         /// <summary>
         /// Start a <see cref="SliceableTask"/> with a series of <see cref="Action"/>s.
         /// </summary>
-        /// <param name="executionTimePerFrame">The value for <see cref="executionTimePerFrame"/>.</param>
+        /// <param name="timeBudgetPerFrame">The value for <see cref="timeBudgetPerFrame"/>.</param>
         /// <param name="actions">The actions to execute.</param>
         /// <returns>The <see cref="SliceableTask"/> instance create.</returns>
-        public static SliceableTask Start(float executionTimePerFrame, IEnumerable<Action> actions)
+        public static SliceableTask Start(float timeBudgetPerFrame, IEnumerable<Action> actions)
         {
             IEnumerator<Action> e = actions.GetEnumerator();
 
             return new SliceableTask(
-                executionTimePerFrame,
+                timeBudgetPerFrame,
                 () =>
                 {
                     while (e.MoveNext())
@@ -177,10 +192,10 @@ namespace AillieoUtils.EasyTimeSlicing
         /// <summary>
         /// Start a <see cref="SliceableTask"/> with a series of <see cref="Action"/>s.
         /// </summary>
-        /// <param name="executionTimePerFrame">The value for <see cref="executionTimePerFrame"/>.</param>
+        /// <param name="timeBudgetPerFrame">The value for <see cref="timeBudgetPerFrame"/>.</param>
         /// <param name="actions">The actions to execute.</param>
         /// <returns>The <see cref="SliceableTask"/> instance create.</returns>
-        public static SliceableTask Start(float executionTimePerFrame, params Action[] actions)
+        public static SliceableTask Start(float timeBudgetPerFrame, params Action[] actions)
         {
             if (actions == null)
             {
@@ -197,7 +212,7 @@ namespace AillieoUtils.EasyTimeSlicing
             var index = 0;
 
             return new SliceableTask(
-                executionTimePerFrame,
+                timeBudgetPerFrame,
                 () =>
                 {
                     if (index < actionCount)
@@ -214,7 +229,7 @@ namespace AillieoUtils.EasyTimeSlicing
                         }
                     }
 
-                    throw new Exception();
+                    throw new IndexOutOfRangeException($"i = {index} while action count = {actionCount}");
                 },
                 2);
         }
@@ -222,10 +237,10 @@ namespace AillieoUtils.EasyTimeSlicing
         /// <summary>
         /// Start a <see cref="SliceableTask"/> with an <see cref="EnumFunc"/>.
         /// </summary>
-        /// <param name="executionTimePerFrame">The value for <see cref="executionTimePerFrame"/>.</param>
+        /// <param name="timeBudgetPerFrame">The value for <see cref="timeBudgetPerFrame"/>.</param>
         /// <param name="func">The function that manages a series of tasks.</param>
         /// <returns>The <see cref="SliceableTask"/> instance create.</returns>
-        public static SliceableTask Start(float executionTimePerFrame, EnumFunc func)
+        public static SliceableTask Start(float timeBudgetPerFrame, EnumFunc func)
         {
             if (func == null)
             {
@@ -234,7 +249,7 @@ namespace AillieoUtils.EasyTimeSlicing
 
             IEnumerator e = func();
             return new SliceableTask(
-                executionTimePerFrame,
+                timeBudgetPerFrame,
                 () =>
                 {
                     if (e.MoveNext())

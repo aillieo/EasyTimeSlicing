@@ -37,7 +37,7 @@ namespace AillieoUtils.EasyTimeSlicing
         {
             if (task == null)
             {
-                throw new Exception();
+                throw new ArgumentNullException(nameof(task));
             }
 
             if (task.status == TaskStatus.PendingRemove)
@@ -51,7 +51,7 @@ namespace AillieoUtils.EasyTimeSlicing
             }
             else
             {
-                throw new Exception($"Unexpected state {task.status}");
+                throw new InvalidOperationException($"Unexpected state {task.status}");
             }
         }
 
@@ -106,7 +106,7 @@ namespace AillieoUtils.EasyTimeSlicing
                 Assert.AreEqual(task.status, TaskStatus.Queued);
 
                 var beginTime = Time.realtimeSinceStartup;
-                var executionTime = task.executionTimePerFrame;
+                var executionTime = task.timeBudgetPerFrame;
                 while (true)
                 {
                     var finished = false;
