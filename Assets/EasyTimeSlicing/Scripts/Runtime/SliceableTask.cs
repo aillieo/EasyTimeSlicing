@@ -139,13 +139,12 @@ namespace AillieoUtils.EasyTimeSlicing
 
             var state = initialState;
 
-            return new SliceableTask(
-                timeBudgetPerFrame,
-                () =>
-                {
-                    return func(ref state);
-                },
-                2);
+            bool funcToExecute()
+            {
+                return func(ref state);
+            }
+
+            return new SliceableTask(timeBudgetPerFrame, funcToExecute, 2);
         }
 
         /// <summary>
@@ -174,19 +173,18 @@ namespace AillieoUtils.EasyTimeSlicing
         {
             IEnumerator<Action> e = actions.GetEnumerator();
 
-            return new SliceableTask(
-                timeBudgetPerFrame,
-                () =>
+            bool funcToExecute()
+            {
+                while (e.MoveNext())
                 {
-                    while (e.MoveNext())
-                    {
-                        e.Current?.Invoke();
-                        return false;
-                    }
+                    e.Current?.Invoke();
+                    return false;
+                }
 
-                    return true;
-                },
-                2);
+                return true;
+            }
+
+            return new SliceableTask(timeBudgetPerFrame, funcToExecute, 2);
         }
 
         /// <summary>
@@ -211,27 +209,26 @@ namespace AillieoUtils.EasyTimeSlicing
 
             var index = 0;
 
-            return new SliceableTask(
-                timeBudgetPerFrame,
-                () =>
+            bool funcToExecute()
+            {
+                if (index < actionCount)
                 {
-                    if (index < actionCount)
+                    actions[index]?.Invoke();
+                    if (index == actionCount - 1)
                     {
-                        actions[index]?.Invoke();
-                        if (index == actionCount - 1)
-                        {
-                            return true;
-                        }
-                        else
-                        {
-                            index++;
-                            return false;
-                        }
+                        return true;
                     }
+                    else
+                    {
+                        index++;
+                        return false;
+                    }
+                }
 
-                    throw new IndexOutOfRangeException($"i = {index} while action count = {actionCount}");
-                },
-                2);
+                throw new IndexOutOfRangeException($"i = {index} while action count = {actionCount}");
+            }
+
+            return new SliceableTask(timeBudgetPerFrame, funcToExecute, 2);
         }
 
         /// <summary>
@@ -248,18 +245,17 @@ namespace AillieoUtils.EasyTimeSlicing
             }
 
             IEnumerator e = func();
-            return new SliceableTask(
-                timeBudgetPerFrame,
-                () =>
+            bool funcToExecute()
+            {
+                if (e.MoveNext())
                 {
-                    if (e.MoveNext())
-                    {
-                        return false;
-                    }
+                    return false;
+                }
 
-                    return true;
-                },
-                2);
+                return true;
+            }
+
+            return new SliceableTask(timeBudgetPerFrame, funcToExecute, 2);
         }
 
         /// <summary>

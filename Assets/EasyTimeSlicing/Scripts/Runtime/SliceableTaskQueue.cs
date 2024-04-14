@@ -82,7 +82,7 @@ namespace AillieoUtils.EasyTimeSlicing
         /// <param name="priority">The priority of the task. The default is <see cref="Priority.Medium"/>.</param>
         public void Enqueue(Action action, Priority priority = Priority.Medium)
         {
-            Queue<Action> queue = this.GetQueue(priority);
+            Queue<Action> queue = this.GetQueue(priority, true);
             queue.Enqueue(action);
             if (!this.scheduling)
             {
@@ -100,22 +100,22 @@ namespace AillieoUtils.EasyTimeSlicing
         public Handle EnqueueWithHandle(Action action, Priority priority = Priority.Medium)
         {
             var handle = new Handle();
-            this.Enqueue(
-                () =>
+            void wrapped()
+            {
+                if (handle.status == TaskStatus.Queued)
                 {
-                    if (handle.status == TaskStatus.Queued)
+                    try
                     {
-                        try
-                        {
-                            action();
-                        }
-                        finally
-                        {
-                            handle.status = TaskStatus.Finished;
-                        }
+                        action();
                     }
-                },
-                priority);
+                    finally
+                    {
+                        handle.status = TaskStatus.Finished;
+                    }
+                }
+            }
+
+            this.Enqueue(wrapped, priority);
             return handle;
         }
 
@@ -169,54 +169,35 @@ namespace AillieoUtils.EasyTimeSlicing
         /// <returns>The number of pending tasks with the specified priority.</returns>
         public int GetPendingTasks(Priority priority)
         {
-            switch (priority)
+            var queue = this.GetQueue(priority, false);
+            if (queue == null)
             {
-                case Priority.Low:
-                    if (this.queueLow == null)
-                    {
-                        return 0;
-                    }
-
-                    return this.queueLow.Count;
-                case Priority.Medium:
-                    if (this.queueMedium == null)
-                    {
-                        return 0;
-                    }
-
-                    return this.queueMedium.Count;
-                case Priority.High:
-                    if (this.queueHigh == null)
-                    {
-                        return 0;
-                    }
-
-                    return this.queueHigh.Count;
+                return 0;
             }
 
-            throw new IndexOutOfRangeException(nameof(priority));
+            return queue.Count;
         }
 
-        private Queue<Action> GetQueue(Priority priority)
+        private Queue<Action> GetQueue(Priority priority, bool createIfNotExist)
         {
             switch (priority)
             {
                 case Priority.Low:
-                    if (this.queueLow == null)
+                    if (this.queueLow == null && createIfNotExist)
                     {
                         this.queueLow = new Queue<Action>();
                     }
 
                     return this.queueLow;
                 case Priority.Medium:
-                    if (this.queueMedium == null)
+                    if (this.queueMedium == null && createIfNotExist)
                     {
                         this.queueMedium = new Queue<Action>();
                     }
 
                     return this.queueMedium;
                 case Priority.High:
-                    if (this.queueHigh == null)
+                    if (this.queueHigh == null && createIfNotExist)
                     {
                         this.queueHigh = new Queue<Action>();
                     }
