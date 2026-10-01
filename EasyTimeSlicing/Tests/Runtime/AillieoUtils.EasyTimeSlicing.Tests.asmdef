@@ -1,0 +1,9 @@
+{
+    "name": "AillieoUtils.EasyTimeSlicing.Tests",
+    "references": [
+        "AillieoUtils.EasyTimeSlicing"
+    ],
+    "optionalUnityReferences": [
+        "TestAssemblies"
+    ]
+}

@@ -8,16 +8,13 @@ namespace AillieoUtils.EasyTimeSlicing
 {
     using System;
     using UnityEngine;
-    using UnityEngine.Assertions;
+    using UnityEngine.Rendering;
 
     /// <summary>
     /// Provides utility methods for time-sliced execution of tasks.
     /// </summary>
     public static class TimeSlicingUtils
     {
-        private static int cachedFrameRate = int.MinValue;
-        private static float cachedFrameInterval;
-
         /// <summary>
         /// Gets the time interval between frames based on <see cref="Application.targetFrameRate"/>.
         /// </summary>
@@ -25,13 +22,34 @@ namespace AillieoUtils.EasyTimeSlicing
         {
             get
             {
-                if (Application.targetFrameRate != cachedFrameRate)
+                var effectiveFrameRate = OnDemandRendering.effectiveRenderFrameRate;
+                if (effectiveFrameRate > 0)
                 {
-                    cachedFrameRate = Application.targetFrameRate;
-                    cachedFrameInterval = 1.0f / cachedFrameRate;
+                    effectiveFrameRate *= Mathf.Max(1, OnDemandRendering.renderFrameInterval);
                 }
 
-                return cachedFrameInterval;
+                if (effectiveFrameRate <= 0)
+                {
+                    var refreshRate = GetRefreshRate();
+                    if (QualitySettings.vSyncCount > 0 && refreshRate > 0)
+                    {
+                        effectiveFrameRate = refreshRate / QualitySettings.vSyncCount;
+                    }
+                    else if (Application.targetFrameRate > 0)
+                    {
+                        effectiveFrameRate = Application.targetFrameRate;
+                    }
+                    else if (refreshRate > 0)
+                    {
+                        effectiveFrameRate = refreshRate;
+                    }
+                    else
+                    {
+                        effectiveFrameRate = 60;
+                    }
+                }
+
+                return 1.0f / effectiveFrameRate;
             }
         }
 
@@ -62,7 +80,10 @@ namespace AillieoUtils.EasyTimeSlicing
         /// <returns>Whether the execution was executed.</returns>
         public static bool TryExecute(Action action, float expectedExecutionTime)
         {
-            Assert.IsNotNull(action);
+            if (action == null)
+            {
+                throw new ArgumentNullException(nameof(action));
+            }
 
             if (CheckExecuteTime(expectedExecutionTime))
             {
@@ -83,7 +104,10 @@ namespace AillieoUtils.EasyTimeSlicing
         /// <returns>Whether the execution was executed.</returns>
         public static bool TryExecute<T>(Action<T> action, T data, float expectedExecutionTime)
         {
-            Assert.IsNotNull(action);
+            if (action == null)
+            {
+                throw new ArgumentNullException(nameof(action));
+            }
 
             if (CheckExecuteTime(expectedExecutionTime))
             {
@@ -104,7 +128,10 @@ namespace AillieoUtils.EasyTimeSlicing
         /// <returns>Whether the execution was executed.</returns>
         public static bool TryExecute<TResult>(Func<TResult> func, float expectedExecutionTime, out TResult result)
         {
-            Assert.IsNotNull(func);
+            if (func == null)
+            {
+                throw new ArgumentNullException(nameof(func));
+            }
 
             if (CheckExecuteTime(expectedExecutionTime))
             {
@@ -128,7 +155,10 @@ namespace AillieoUtils.EasyTimeSlicing
         /// <returns>Whether the execution was executed.</returns>
         public static bool TryExecute<T, TResult>(Func<T, TResult> func, T data, float expectedExecutionTime, out TResult result)
         {
-            Assert.IsNotNull(func);
+            if (func == null)
+            {
+                throw new ArgumentNullException(nameof(func));
+            }
 
             if (CheckExecuteTime(expectedExecutionTime))
             {
@@ -142,9 +172,9 @@ namespace AillieoUtils.EasyTimeSlicing
 
         private static bool CheckExecuteTime(float expectedExecutionTime)
         {
-            if (expectedExecutionTime < 0)
+            if (float.IsNaN(expectedExecutionTime) || float.IsInfinity(expectedExecutionTime) || expectedExecutionTime < 0)
             {
-                throw new ArgumentException("Value should greater than 0", nameof(expectedExecutionTime));
+                throw new ArgumentOutOfRangeException(nameof(expectedExecutionTime), expectedExecutionTime, "Expected execution time must be a finite, non-negative value.");
             }
 
             if (expectedExecutionTime >= frameInterval)
@@ -163,6 +193,15 @@ namespace AillieoUtils.EasyTimeSlicing
             }
 
             return true;
+        }
+
+        private static int GetRefreshRate()
+        {
+#if UNITY_2022_2_OR_NEWER
+            return (int)Math.Round(Screen.currentResolution.refreshRateRatio.value);
+#else
+            return Screen.currentResolution.refreshRate;
+#endif
         }
     }
 }
