@@ -8,21 +8,32 @@ namespace AillieoUtils.EasyTimeSlicing
 {
     using System;
     using System.Collections.Generic;
+    using Unity.Profiling;
 
     /// <summary>
     /// Represents a queue of tasks that can be scheduled and executed in slices.
     /// </summary>
     public class SliceableTaskQueue
     {
+        private static int nextQueueId;
+
         private readonly SliceableTask sliceableTask;
 
-        private Queue<Action> queueLow;
-        private Queue<Action> queueMedium;
-        private Queue<Action> queueHigh;
+        private readonly ProfilerMarker profilerMarker;
 
-        private SliceableTaskQueue(float timeBudgetPerFrame)
+        private Queue<Entry> queueLow;
+        private Queue<Entry> queueMedium;
+        private Queue<Entry> queueHigh;
+
+        private bool paused;
+
+        private SliceableTaskQueue(float timeBudgetPerFrame, SliceableTaskOptions options = null)
         {
-            this.sliceableTask = SliceableTask.Start(timeBudgetPerFrame, this.ProcessTask);
+            var profilerTag = string.IsNullOrWhiteSpace(options?.profilerTag)
+                ? $"Queue#{++nextQueueId}"
+                : options.profilerTag;
+            this.profilerMarker = new ProfilerMarker($"EasyTimeSlicing.Queue/{profilerTag}");
+            this.sliceableTask = SliceableTask.StartRestartable(timeBudgetPerFrame, this.ProcessTask, options);
         }
 
         /// <summary>
@@ -58,7 +69,8 @@ namespace AillieoUtils.EasyTimeSlicing
         /// <summary>
         /// Gets a value indicating whether the task queue is currently scheduling and executing tasks.
         /// </summary>
-        public bool scheduling { get => this.sliceableTask.status == TaskStatus.Executing || this.sliceableTask.status == TaskStatus.Queued; }
+        public bool scheduling => !this.paused &&
+            (this.sliceableTask.schedulingState == SchedulingState.Executing || this.sliceableTask.schedulingState == SchedulingState.Queued);
 
         /// <summary>
         /// Gets the number of pending tasks in the task queue.
@@ -76,19 +88,29 @@ namespace AillieoUtils.EasyTimeSlicing
         }
 
         /// <summary>
+        /// Creates a new instance of the <see cref="SliceableTaskQueue"/> class with diagnostic options.
+        /// </summary>
+        /// <param name="timeBudgetPerFrame">The time budget per frame for task execution.</param>
+        /// <param name="options">Diagnostic options applied to actions executed by this queue.</param>
+        /// <returns>A new instance of the <see cref="SliceableTaskQueue"/> class.</returns>
+        public static SliceableTaskQueue Create(float timeBudgetPerFrame, SliceableTaskOptions options)
+        {
+            return new SliceableTaskQueue(timeBudgetPerFrame, options);
+        }
+
+        /// <summary>
         /// Enqueues a task with the specified priority.
         /// </summary>
         /// <param name="action">The task to enqueue.</param>
         /// <param name="priority">The priority of the task. The default is <see cref="Priority.Medium"/>.</param>
         public void Enqueue(Action action, Priority priority = Priority.Medium)
         {
-            Queue<Action> queue = this.GetQueue(priority, true);
-            queue.Enqueue(action);
-            if (!this.scheduling)
+            if (action == null)
             {
-                this.sliceableTask.status = TaskStatus.Detached;
-                this.Resume();
+                throw new ArgumentNullException(nameof(action));
             }
+
+            this.Enqueue(new Entry(action, null, priority), priority);
         }
 
         /// <summary>
@@ -99,23 +121,13 @@ namespace AillieoUtils.EasyTimeSlicing
         /// <returns>A handle for the enqueued task.</returns>
         public Handle EnqueueWithHandle(Action action, Priority priority = Priority.Medium)
         {
-            var handle = new Handle();
-            void wrapped()
+            if (action == null)
             {
-                if (handle.status == TaskStatus.Queued)
-                {
-                    try
-                    {
-                        action();
-                    }
-                    finally
-                    {
-                        handle.status = TaskStatus.Finished;
-                    }
-                }
+                throw new ArgumentNullException(nameof(action));
             }
 
-            this.Enqueue(wrapped, priority);
+            var handle = new Handle();
+            this.Enqueue(new Entry(action, handle, priority), priority);
             return handle;
         }
 
@@ -124,7 +136,9 @@ namespace AillieoUtils.EasyTimeSlicing
         /// </summary>
         public void Pause()
         {
-            if (this.scheduling)
+            var wasScheduling = this.scheduling;
+            this.paused = true;
+            if (wasScheduling)
             {
                 TimeSlicingScheduler.Instance.Remove(this.sliceableTask);
             }
@@ -135,9 +149,10 @@ namespace AillieoUtils.EasyTimeSlicing
         /// </summary>
         public void Resume()
         {
-            if (!this.scheduling)
+            this.paused = false;
+            if (!this.scheduling && this.pendingTasks > 0)
             {
-                TimeSlicingScheduler.Instance.Add(this.sliceableTask);
+                this.sliceableTask.Restart();
             }
         }
 
@@ -146,20 +161,9 @@ namespace AillieoUtils.EasyTimeSlicing
         /// </summary>
         public void ClearAll()
         {
-            if (this.queueLow != null)
-            {
-                this.queueLow.Clear();
-            }
-
-            if (this.queueMedium != null)
-            {
-                this.queueMedium.Clear();
-            }
-
-            if (this.queueHigh != null)
-            {
-                this.queueHigh.Clear();
-            }
+            Clear(this.queueLow);
+            Clear(this.queueMedium);
+            Clear(this.queueHigh);
         }
 
         /// <summary>
@@ -169,37 +173,69 @@ namespace AillieoUtils.EasyTimeSlicing
         /// <returns>The number of pending tasks with the specified priority.</returns>
         public int GetPendingTasks(Priority priority)
         {
-            var queue = this.GetQueue(priority, false);
+            Queue<Entry> queue = this.GetQueue(priority, false);
             if (queue == null)
             {
                 return 0;
             }
 
-            return queue.Count;
+            var count = 0;
+            foreach (Entry entry in queue)
+            {
+                if (entry.handle == null || entry.handle.status == SliceableTaskStatus.Pending)
+                {
+                    count++;
+                }
+            }
+
+            return count;
         }
 
-        private Queue<Action> GetQueue(Priority priority, bool createIfNotExist)
+        private static void Clear(Queue<Entry> queue)
+        {
+            if (queue == null)
+            {
+                return;
+            }
+
+            while (queue.Count > 0)
+            {
+                queue.Dequeue().handle?.Cancel();
+            }
+        }
+
+        private void Enqueue(Entry entry, Priority priority)
+        {
+            Queue<Entry> queue = this.GetQueue(priority, true);
+            queue.Enqueue(entry);
+            if (!this.paused && !this.scheduling)
+            {
+                this.sliceableTask.Restart();
+            }
+        }
+
+        private Queue<Entry> GetQueue(Priority priority, bool createIfNotExist)
         {
             switch (priority)
             {
                 case Priority.Low:
                     if (this.queueLow == null && createIfNotExist)
                     {
-                        this.queueLow = new Queue<Action>();
+                        this.queueLow = new Queue<Entry>();
                     }
 
                     return this.queueLow;
                 case Priority.Medium:
                     if (this.queueMedium == null && createIfNotExist)
                     {
-                        this.queueMedium = new Queue<Action>();
+                        this.queueMedium = new Queue<Entry>();
                     }
 
                     return this.queueMedium;
                 case Priority.High:
                     if (this.queueHigh == null && createIfNotExist)
                     {
-                        this.queueHigh = new Queue<Action>();
+                        this.queueHigh = new Queue<Entry>();
                     }
 
                     return this.queueHigh;
@@ -210,78 +246,133 @@ namespace AillieoUtils.EasyTimeSlicing
 
         private bool ProcessTask()
         {
-            if (this.queueHigh != null && this.queueHigh.Count > 0)
+            this.profilerMarker.Begin();
+            try
             {
-                try
+                Entry entry = this.DequeueNext();
+                if (entry != null &&
+                    (entry.handle == null || entry.handle.status == SliceableTaskStatus.Pending))
                 {
-                    this.queueHigh.Dequeue()?.Invoke();
-                }
-                catch (Exception e)
-                {
-                    UnityEngine.Debug.LogException(e);
+                    try
+                    {
+                        entry.Invoke();
+                        entry.handle?.Complete();
+                    }
+                    catch (Exception e)
+                    {
+                        entry.handle?.Fault(e);
+                        UnityEngine.Debug.LogException(e);
+                    }
                 }
 
-                if (this.queueHigh.Count > 0)
-                {
-                    return false;
-                }
+                return !this.HasQueuedEntries();
+            }
+            finally
+            {
+                this.profilerMarker.End();
+            }
+        }
+
+        private bool HasQueuedEntries()
+        {
+            return (this.queueHigh != null && this.queueHigh.Count > 0) ||
+                (this.queueMedium != null && this.queueMedium.Count > 0) ||
+                (this.queueLow != null && this.queueLow.Count > 0);
+        }
+
+        private Entry DequeueNext()
+        {
+            if (this.queueHigh != null && this.queueHigh.Count > 0)
+            {
+                return this.queueHigh.Dequeue();
             }
 
             if (this.queueMedium != null && this.queueMedium.Count > 0)
             {
-                try
-                {
-                    this.queueMedium.Dequeue()?.Invoke();
-                }
-                catch (Exception e)
-                {
-                    UnityEngine.Debug.LogException(e);
-                }
-
-                if (this.queueMedium.Count > 0)
-                {
-                    return false;
-                }
+                return this.queueMedium.Dequeue();
             }
 
             if (this.queueLow != null && this.queueLow.Count > 0)
             {
-                try
-                {
-                    this.queueLow.Dequeue()?.Invoke();
-                }
-                catch (Exception e)
-                {
-                    UnityEngine.Debug.LogException(e);
-                }
-
-                if (this.queueLow.Count > 0)
-                {
-                    return false;
-                }
+                return this.queueLow.Dequeue();
             }
 
-            return true;
+            return null;
+        }
+
+        private sealed class Entry
+        {
+            internal readonly Action action;
+            internal readonly Handle handle;
+
+            private readonly ProfilerMarker profilerMarker;
+
+            internal Entry(Action action, Handle handle, Priority priority)
+            {
+                this.action = action;
+                this.handle = handle;
+                this.profilerMarker = new ProfilerMarker($"EasyTimeSlicing.QueueEntry/{priority}/{SliceableTask.GetProfilerTag(null, action)}");
+            }
+
+            internal void Invoke()
+            {
+                this.profilerMarker.Begin();
+                try
+                {
+                    this.action.Invoke();
+                }
+                finally
+                {
+                    this.profilerMarker.End();
+                }
+            }
         }
 
         /// <summary>
         /// Represents a handle for a task in the task queue.
         /// </summary>
-        public class Handle
+        public sealed class Handle : ISliceableTaskHandle
         {
             /// <summary>
-            /// Gets the status of the task.
+            /// Gets the observable result of the task.
             /// </summary>
-            public TaskStatus status { get; internal set; } = TaskStatus.Queued;
+            public SliceableTaskStatus status { get; private set; } = SliceableTaskStatus.Pending;
 
             /// <summary>
-            /// Cancels the task, detaching it from the task queue.
+            /// Gets a value indicating whether the task has reached a terminal result.
+            /// </summary>
+            public bool isCompleted => this.status != SliceableTaskStatus.Pending;
+
+            /// <summary>
+            /// Gets the exception thrown by the task, or null if the task did not fault.
+            /// </summary>
+            public Exception exception { get; private set; }
+
+            /// <summary>
+            /// Cancels the task if it has not completed.
             /// </summary>
             public void Cancel()
             {
-                if (this.status == TaskStatus.Queued)
+                if (this.status == SliceableTaskStatus.Pending)
                 {
-                    this.status = TaskStatus.Detached;
+                    this.status = SliceableTaskStatus.Cancelled;
+                }
+            }
+
+            internal void Complete()
+            {
+                if (this.status == SliceableTaskStatus.Pending)
+                {
+                    this.status = SliceableTaskStatus.Succeeded;
+                }
+            }
+
+            internal void Fault(Exception taskException)
+            {
+                if (this.status == SliceableTaskStatus.Pending)
+                {
+                    this.exception = taskException;
+                    this.status = SliceableTaskStatus.Faulted;
                 }
             }
         }
